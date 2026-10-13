@@ -1,87 +1,133 @@
 # ClickMapper
 
-Native macOS Zwift Click V2 keyboard mapper. Requires macOS 14+ and Swift 6 tools. MyWhoosh on the same Mac is the first supported workflow.
+Turn Zwift Click V2 controllers into a customizable keyboard remote for macOS. Map buttons to keys and shortcuts for document navigation, presentations, media applications, games, or other keyboard-driven workflows.
+
+ClickMapper runs in the menu bar, shows live controller input, and sends mapped keys to the focused application.
+
+## Features
+
+- Configurable keys and Command, Option, Control, and Shift modifiers for ten controller inputs.
+- Tap, hold, and fast repeat behavior.
+- Interactive pod diagrams with live button highlights and physical-button learning.
+- Zwift Click discovery with stable device rows and automatic reconnection.
+- Locally saved mappings and a menu bar panel that works without an open main window.
+- Arrow-key navigation and an optional MyWhoosh shifting preset.
 
 ## Screenshots
 
-These renders show the current app views with sample button presses and fictitious device IDs. They are UI previews, not evidence of a live connection or permission grant.
+The following previews use sample button input and fictitious device identifiers.
 
 ### Menu bar panel
 
-Live pod diagrams, stable discovery cards, and automatic reconnect controls:
+![Menu bar panel with live pod diagrams and controller discovery](docs/screenshots/menu-bar.png)
 
-![ClickMapper menu bar panel with two controllers and highlighted pod buttons](docs/screenshots/menu-bar.png)
+### Mapping editor
 
-### Keyboard mapper
+![Keyboard mapping editor with arrow-key repeat controls](docs/screenshots/mapper.png)
 
-Select a physical button, learn its input, and assign a key or shortcut:
+## Requirements
 
-![ClickMapper keyboard editor with live pod diagrams and I/K shifting mappings](docs/screenshots/mapper.png)
+- macOS 14 or later.
+- Swift 6 toolchain to build from source.
+- Zwift Click V2 controllers and Bluetooth access.
+- Accessibility permission to send keyboard input.
 
-## Build and run
+## Build and launch
 
 ```sh
 ./scripts/build-app.sh
 open 'build/ClickMapper Diagnostic.app'
 ```
 
-Quit the previous diagnostic before opening the rebuilt app. The bundle retains its original name and identifier to preserve Bluetooth permissions.
+The bundle retains its original `ClickMapper Diagnostic.app` name and `local.clickmapper.diagnostic` identifier. Click the keyboard icon in the menu bar to open the control panel.
 
-1. Allow Bluetooth, close other apps connected to the controllers, wake the pods, click Scan, and connect to **Zwift Click**. The scanner shows only names beginning with Zwift Click, in fixed discovery order. Rescanning retains rows so they do not jump. Short device IDs distinguish identically named devices. Use Switch to try the other device if only one pod responds, then Remember working device once both respond; this marks that device for future sessions. Switching disables keyboard output, so enable it again after checking the connection. Only one peripheral connection is supported; both physical pods have produced events through one connection in hardware testing.
-2. Press each physical button and watch the diagrams light up. The drawings are schematic and their initial decoded names/positions are provisional. Click a diagram position, choose **Learn physical button**, then press that physical button to confirm its source. Learning swaps assignments to keep sources unique.
-3. The default MyWhoosh preset maps **plus → I** and **minus → K**, with one tap per press. MyWhoosh documents I/K for MyShift: https://mywhoosh.com/myshift-mywhooshs-virtual-shifting-explained/. Confirm gear direction in your installed game; either mapping is editable.
-4. Click **Enable output** and grant ClickMapper access in **System Settings → Privacy & Security → Accessibility**. Then enable output again. The app never enables output automatically at launch or after disconnect.
-5. Open MyWhoosh on this Mac, enable MyShift, and start a ride. Keep MyWhoosh in front. Verify I/K with your physical keyboard first, then test the pod buttons.
+**Building resets ClickMapper's Accessibility approval.** The build script quits the running app, packages and signs the new build, then resets permission for this app only. Grant access again after rebuilding, fully quit ClickMapper, and reopen it before enabling output. The script reports an error if the reset cannot run in the current environment.
 
-## Custom mappings
+## Getting started
 
-Click any of the ten diagram buttons. Select a key and Command/Option/Control/Shift modifiers, or record a keyboard shortcut. Escape cancels recording; select Escape from the menu to assign it. Keys use macOS physical key codes, so character output depends on the active keyboard layout. Recorded keys outside the standard menu appear as a custom option.
+1. Wake both pods and close other applications connected to them.
+2. Choose **Find devices** in the menu bar panel, then **Connect** beside a Zwift Click device. Short IDs distinguish devices with the same name.
+3. Press buttons on both pods and check the live diagrams. If only one responds, use **Switch** to try the other device.
+4. Open the mapper and configure the buttons. Use **Learn physical button** if a diagram position does not match the physical input.
+5. Choose **Permissions…** or **Grant permission…**, then allow ClickMapper in **System Settings → Privacy & Security → Accessibility**. Fully quit and reopen the app after granting access.
+6. Enable output and focus the application you want to control.
 
-- **Tap:** one key-down/up pair per controller press (default for shifting).
-- **Hold:** key stays down until the controller button is released.
-- **Repeat:** immediate tap, then taps every 150 ms after a 450 ms delay while held.
+Output starts disabled and is disabled after a disconnect. Closing the mapper window keeps the menu bar app running; **Quit** in the panel stops it completely.
 
-Mappings and learned positions are saved locally. Loading the MyWhoosh preset resets all keyboard bindings, leaving learned positions intact. Other eight buttons start unassigned. Keyboard output now works across all foreground apps by default; ClickMapper itself is excluded. There is no application restriction toggle.
+## Button mappings
 
-Held keys and repeat timers are cleared on disconnect, output disable, mapping edits, and foreground-app changes. Sleep disables output. Bluetooth input and keyboard typing have been confirmed by the user. Automatic reconnect and real-game behavior still need hardware verification; automated tests use a fake event sink and do not send keys. This version supports keyboard shortcuts, not mouse actions, text macros, or profile switching.
+Select a button in the diagram, choose a key, and add modifiers as needed. **Record keyboard shortcut** captures a shortcut from your keyboard. Escape cancels recording; choose Escape from the key menu to assign it.
 
-## Hardware evidence and limitations
+| Behavior | Result |
+| --- | --- |
+| Tap | Sends one key press immediately for each controller press. |
+| Hold | Keeps the key down until the controller button is released. |
+| Repeat | Sends key-down immediately, waits 250 ms, then sends keyboard autorepeat events every 35 ms. Sends key-up on release. |
 
-Firmware 1.0.1 produced all ten decoded button IDs beyond ten minutes, resumed after idle, and registered simultaneous three-second holds without a reported prior unlock. Reconnecting restored both pods after an intermittent one-pod response. Pod topology, reliable peripheral selection, sleep/wake behavior, and other firmware remain unverified. See `docs/protocol-observations.md`.
+Each distinct controller press is processed immediately, without a debounce delay. Repeat timers stop on release, disconnect, output disable, mapping changes, or a foreground-app change. Sleep disables output.
 
-Protocol constants and candidate active-low button positions derive from the MIT-licensed community reference:
-https://github.com/nrbz467bct-dot/zwift-click-keyboard-mapper/blob/main/zwift_click_mapper.py
+Mappings use macOS physical key codes, so character output follows the active keyboard layout. Output is available across foreground applications; ClickMapper itself is excluded.
 
-The app recognizes seven-byte `23 08` state frames and uses the reference handshake and five-second keepalive. It does not authenticate/decrypt other packet formats, connect to a trainer, or update firmware. Unknown payloads are omitted from the bounded in-memory log. Remove device UUIDs before sharing logs.
+### Arrow keys and scrolling
 
-## Tests
+Choose **Map arrow keys** to map the four directional buttons to repeating arrow keys. Other button mappings are preserved. Fresh installations start with these four mappings; selecting an arrow key in the editor also selects Repeat behavior.
+
+A quick press sends one arrow key immediately. Holding the button repeats it, like keyboard navigation. The focused application determines the result: a webpage may scroll, an editor may move the caret, and a list may move its selection. Focus the appropriate document or pane first. If physical arrow keys do not scroll that view, mapped arrow keys will behave the same way.
+
+There is no separate mouse-wheel scrolling action. Previously saved long-press scrolling mappings migrate to the corresponding repeating arrow keys. Other saved mappings remain unchanged.
+
+### MyWhoosh preset
+
+**Load MyWhoosh I / K preset** replaces the keyboard mappings with **plus → I** and **minus → K**, leaving the other buttons unassigned and retaining learned physical positions. MyWhoosh documents these keys for [MyShift virtual shifting](https://mywhoosh.com/myshift-mywhooshs-virtual-shifting-explained/). Enable MyShift in the game and verify the gear direction in your installed version.
+
+## Connection behavior
+
+Discovery lists only advertisements named Zwift Click and keeps rows in discovery order while signal strength updates. The last device to produce recognized input is remembered for automatic reconnection. Only that device is retried, avoiding arbitrary selection between identically named pods.
+
+Automatic reconnection is enabled by default and can be disabled in the panel. Manual **Disconnect** or **Cancel** pauses it until you choose **Resume**, connect manually, or relaunch. The app supports one Bluetooth peripheral connection at a time; both physical pods have produced input through a single connection during testing.
+
+## Troubleshooting
+
+**Accessibility granted, keyboard posting denied:** fully quit using **Quit** in the menu bar panel, then reopen the unchanged app. Closing the mapper window is not sufficient. This restart resolved the permission mismatch observed during development.
+
+**Permission remains denied:** check that the app in Accessibility settings is the current build. To reset only ClickMapper's approval, run:
+
+```sh
+sh scripts/reset-permission.sh
+```
+
+Reopen the app, grant access, then fully quit and reopen once more. The reset script does not grant permission automatically.
+
+**No keyboard output:** enable output, focus another application, and check the selected button's mapping. Use **Test I key in 3 seconds**, then focus a blank TextEdit document to test output independently of Bluetooth. The output status and diagnostic log report blocked input and attempted key delivery.
+
+## Development
+
+Run the mapping checks with:
 
 ```sh
 ./scripts/test.sh
 ```
 
-## Menu bar mode
+Tests use a fake keyboard event sink and do not inject keys. Native arrow-event checks also inspect character codes, navigation flags, and autorepeat metadata; these checks need access to the macOS graphical session. They cover rapid presses, repeat timing and cancellation, held keys, saved mappings, and migration from the retired scroll configuration. Real application behavior and Bluetooth reconnection require hardware testing.
 
-The build script now quits ClickMapper before replacing its executable and resets only `local.clickmapper.diagnostic` Accessibility approval after signing, as requested. Each rebuild therefore requires you to grant permission again. Run `sh scripts/reset-permission.sh` to perform the same reset without rebuilding. A failed reset is reported as a script failure; inside a restricted execution environment, the reset needs to run outside the sandbox. macOS approval must still be given by the user.
+### Version control
 
-ClickMapper starts as a keyboard icon in the macOS menu bar, without a Dock icon or an open window. Click the icon for an interactive panel with live pod diagrams, device cards, signal strength, scan/connect/switch controls, an output toggle, and a shortcut to the full mapper. Tap a diagram position and choose Edit to configure it. Brief presses remain highlighted for 200 ms so they are visible. Close the mapper window to leave Bluetooth and keyboard output running. Choose **Quit** in the panel to stop the app and release held keys. The process must remain running to receive Bluetooth input; menu bar mode hides the main window, it does not eliminate the background process.
-
-This locally ad-hoc-signed build can require renewed Accessibility permission after a rebuild. If Accessibility is granted but keyboard posting is denied, fully quit via the menu and reopen the unchanged build to refresh the permission check. Output remains off at launch until explicitly enabled.
-
-Automatic reconnect is enabled by default and can be turned off in the panel. The last device that produced a recognized state frame is remembered; only that device is retried, avoiding arbitrary selection between identically named pods. Startup and Bluetooth recovery attempt that device, and failed connections retry after a bounded 15-second attempt on an eight-second retry timer. Manual Disconnect/Cancel pauses reconnect until Resume, a manual connection, or relaunch. Output still needs to be explicitly enabled after disconnect. Discovery rows retain their positions while RSSI updates; saved devices without a current advertisement are labeled as saved.
-
-## What to commit
-
-Commit `.gitignore`, `Package.swift`, `README.md`, and the contents of `Sources/`, `Tests/`, `scripts/`, and `docs/`. The screenshots in `docs/screenshots/` are documentation assets and should be committed too.
+Commit source, tests, scripts, documentation, and documentation screenshots:
 
 ```sh
 # Run git init first if this directory is not yet a Git repository.
 git add .gitignore Package.swift README.md Sources/ Tests/ scripts/ docs/
 git diff --cached --stat
 git diff --cached
-git commit -m "Add ClickMapper menu bar UI, keyboard mapping, and auto-reconnect"
+git commit -m "Add configurable macOS controller mapping and menu bar controls"
 ```
 
-Do not commit generated `.build/` caches, the `build/` app bundle, or `.DS_Store`; `.gitignore` already excludes them. Keep raw diagnostic logs and personal screenshots out of Git unless device UUIDs and personal information have been removed.
+`.gitignore` excludes `.build/`, `build/`, and `.DS_Store`. Keep generated app bundles, build caches, and unsanitized diagnostic logs or personal screenshots out of Git. The images in `docs/screenshots/` are intended to be committed.
 
-The build script's permission reset is intentional: it quits ClickMapper and resets only its Accessibility approval after signing. Rebuilding requires granting access again and fully quitting/reopening the app. Closing the mapper window alone leaves the menu bar process running.
+## Compatibility and protocol
+
+Firmware 1.0.1 has produced all ten decoded inputs beyond ten minutes, resumed after idle, and registered simultaneous holds. Keyboard output has been confirmed on the development Mac. Other firmware, sleep/wake recovery, automatic reconnection, and application-specific behavior require further verification. See [protocol observations](docs/protocol-observations.md).
+
+Protocol constants and candidate button positions derive from the MIT-licensed [community mapper](https://github.com/nrbz467bct-dot/zwift-click-keyboard-mapper/blob/main/zwift_click_mapper.py). ClickMapper recognizes its seven-byte `23 08` state format and uses its handshake and keepalive. Pod diagrams are schematic; physical positions can be learned locally.
+
+ClickMapper does not update firmware, connect to a trainer, or decode other packet formats. Mouse actions, text macros, and multiple mapping profiles are not implemented. Diagnostic logs are bounded and kept in memory; unknown payloads are omitted. Remove device identifiers before sharing logs.
