@@ -2,6 +2,22 @@
 
 Native macOS Zwift Click V2 keyboard mapper. Requires macOS 14+ and Swift 6 tools. MyWhoosh on the same Mac is the first supported workflow.
 
+## Screenshots
+
+These renders show the current app views with sample button presses and fictitious device IDs. They are UI previews, not evidence of a live connection or permission grant.
+
+### Menu bar panel
+
+Live pod diagrams, stable discovery cards, and automatic reconnect controls:
+
+![ClickMapper menu bar panel with two controllers and highlighted pod buttons](docs/screenshots/menu-bar.png)
+
+### Keyboard mapper
+
+Select a physical button, learn its input, and assign a key or shortcut:
+
+![ClickMapper keyboard editor with live pod diagrams and I/K shifting mappings](docs/screenshots/mapper.png)
+
 ## Build and run
 
 ```sh
@@ -51,6 +67,21 @@ The build script now quits ClickMapper before replacing its executable and reset
 ClickMapper starts as a keyboard icon in the macOS menu bar, without a Dock icon or an open window. Click the icon for an interactive panel with live pod diagrams, device cards, signal strength, scan/connect/switch controls, an output toggle, and a shortcut to the full mapper. Tap a diagram position and choose Edit to configure it. Brief presses remain highlighted for 200 ms so they are visible. Close the mapper window to leave Bluetooth and keyboard output running. Choose **Quit** in the panel to stop the app and release held keys. The process must remain running to receive Bluetooth input; menu bar mode hides the main window, it does not eliminate the background process.
 
 This locally ad-hoc-signed build can require renewed Accessibility permission after a rebuild. If Accessibility is granted but keyboard posting is denied, fully quit via the menu and reopen the unchanged build to refresh the permission check. Output remains off at launch until explicitly enabled.
-# ClickMapper
 
 Automatic reconnect is enabled by default and can be turned off in the panel. The last device that produced a recognized state frame is remembered; only that device is retried, avoiding arbitrary selection between identically named pods. Startup and Bluetooth recovery attempt that device, and failed connections retry after a bounded 15-second attempt on an eight-second retry timer. Manual Disconnect/Cancel pauses reconnect until Resume, a manual connection, or relaunch. Output still needs to be explicitly enabled after disconnect. Discovery rows retain their positions while RSSI updates; saved devices without a current advertisement are labeled as saved.
+
+## What to commit
+
+Commit `.gitignore`, `Package.swift`, `README.md`, and the contents of `Sources/`, `Tests/`, `scripts/`, and `docs/`. The screenshots in `docs/screenshots/` are documentation assets and should be committed too.
+
+```sh
+# Run git init first if this directory is not yet a Git repository.
+git add .gitignore Package.swift README.md Sources/ Tests/ scripts/ docs/
+git diff --cached --stat
+git diff --cached
+git commit -m "Add ClickMapper menu bar UI, keyboard mapping, and auto-reconnect"
+```
+
+Do not commit generated `.build/` caches, the `build/` app bundle, or `.DS_Store`; `.gitignore` already excludes them. Keep raw diagnostic logs and personal screenshots out of Git unless device UUIDs and personal information have been removed.
+
+The build script's permission reset is intentional: it quits ClickMapper and resets only its Accessibility approval after signing. Rebuilding requires granting access again and fully quitting/reopening the app. Closing the mapper window alone leaves the menu bar process running.
