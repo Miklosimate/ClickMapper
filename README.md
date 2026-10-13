@@ -34,6 +34,16 @@ The following previews use sample button input and fictitious device identifiers
 
 ## Build and launch
 
+### Install from a disk image
+
+Open `ClickMapper-0.1.0-arm64.dmg`, quit any running ClickMapper instance, and drag **ClickMapper.app** to **Applications**. Eject the disk image and launch `/Applications/ClickMapper.app`. Grant Bluetooth and Accessibility access if prompted, then fully quit and reopen the installed app if keyboard posting still shows denied.
+
+This package targets Apple silicon Macs running macOS 14 or later. To start at login, add the installed app under **System Settings → General → Login Items & Extensions → Open at Login**. Remove any old login item pointing to the development build. Saved mappings are shared with the development build; run only one copy at a time.
+
+The locally built installer is ad-hoc signed and not notarized. Distribution to other users with standard Gatekeeper acceptance requires [Developer ID signing and Apple notarization](https://developer.apple.com/macos/distribution/).
+
+### Build from source
+
 ```sh
 ./scripts/build-app.sh
 open 'build/ClickMapper Diagnostic.app'
@@ -104,6 +114,14 @@ Reopen the app, grant access, then fully quit and reopen once more. The reset sc
 
 ## Development
 
+Create an installer with:
+
+```sh
+./scripts/package-app.sh
+```
+
+The installer is written to `dist/`. Packaging creates a separate `build/package/ClickMapper.app`; it does not quit the running app, reset permissions, or replace an installed copy. The development command `./scripts/build-app.sh` retains its permission-reset behavior. `CLICKMAPPER_SIGN_IDENTITY` can select a signing identity; packaging defaults to ad-hoc signing and does not perform notarization.
+
 Run the mapping checks with:
 
 ```sh
@@ -124,7 +142,7 @@ git diff --cached
 git commit -m "Add configurable macOS controller mapping and menu bar controls"
 ```
 
-`.gitignore` excludes `.build/`, `build/`, and `.DS_Store`. Keep generated app bundles, build caches, and unsanitized diagnostic logs or personal screenshots out of Git. The images in `docs/screenshots/` are intended to be committed.
+`.gitignore` excludes `.build/`, `build/`, `dist/`, and `.DS_Store`. Keep generated app bundles, build caches, and unsanitized diagnostic logs or personal screenshots out of Git. The images in `docs/screenshots/` are intended to be committed.
 
 ## Compatibility and protocol
 
