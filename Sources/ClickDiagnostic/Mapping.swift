@@ -8,10 +8,28 @@ struct KeyBinding: Codable, Equatable {
     var modifiers: UInt64 = 0
     var mode = "Tap"
     var assigned = false
+    var longPress: String? = nil
+    var scrollSpeed: Int? = nil
     var displayLabel: String {
         guard assigned else { return "—" }
         let flags: [(CGEventFlags, String)] = [(.maskControl, "⌃"), (.maskAlternate, "⌥"), (.maskShift, "⇧"), (.maskCommand, "⌘")]
         return flags.filter { modifiers & $0.0.rawValue != 0 }.map { $0.1 }.joined() + label
+    }
+}
+
+enum KeyboardEvents {
+    static func make(code: UInt16, down: Bool, modifiers: UInt64, repeating: Bool) -> CGEvent? {
+        guard let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: code, keyDown: down) else { return nil }
+        var flags = CGEventFlags(rawValue: modifiers)
+        // Arrow keys are navigation/function keys, not ordinary printable keys.
+        let arrows: [UInt16: UniChar] = [123: 0xF702, 124: 0xF703, 125: 0xF701, 126: 0xF700]
+        if var character = arrows[code] {
+            flags.formUnion([.maskNumericPad, .maskSecondaryFn])
+            event.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+        }
+        event.flags = flags
+        event.setIntegerValueField(.keyboardEventAutorepeat, value: down && repeating ? 1 : 0)
+        return event
     }
 }
 
@@ -40,7 +58,7 @@ final class Mapper: ObservableObject {
     @Published var permissionStatus = "Checking permissions…"
     var onOutput: ((String) -> Void)?
     private var testWork: DispatchWorkItem?
-    var emit: (UInt16, Bool, UInt64) -> Void = { _, _, _ in }
+    var emit: (UInt16, Bool, UInt64, Bool) -> Void = { _, _, _, _ in }
     func report(_ text: String) { outputStatus = text; onOutput?("Keyboard: " + text) }
     var blockedReason: String {
         if !enabled { return "Output disabled." }
@@ -67,11 +85,10 @@ final class Mapper: ObservableObject {
     init(defaults: UserDefaults = .standard, outputContext: @escaping () -> Bool = Mapper.isOutputContextAllowed) {
         self.defaults = defaults
         self.outputContext = outputContext
-        emit = { [weak self] code, down, flags in
-            guard let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: code, keyDown: down) else {
+        emit = { [weak self] code, down, flags, repeating in
+            guard let event = KeyboardEvents.make(code: code, down: down, modifiers: flags, repeating: repeating) else {
                 self?.report("Failed to create keyboard event."); return
             }
-            event.flags = CGEventFlags(rawValue: flags)
             event.post(tap: .cghidEventTap)
             if down {
                 let target = NSWorkspace.shared.frontmostApplication?.localizedName ?? "unknown app"
@@ -80,7 +97,20 @@ final class Mapper: ObservableObject {
         }
         sources = defaults.dictionary(forKey: "sources.v1") as? [String: String] ?? Dictionary(uniqueKeysWithValues: Self.slots.map { ($0, $0) })
         if let data = defaults.data(forKey: "bindings.v1"), let saved = try? JSONDecoder().decode([String: KeyBinding].self, from: data) { bindings = saved }
-        else { preset() }
+        else {
+            bindings = Dictionary(uniqueKeysWithValues: Self.slots.map { ($0, KeyBinding()) })
+            navigationPreset()
+        }
+        // Migrate the retired wheel-scrolling configuration to repeating arrow keys.
+        for (slot, var binding) in bindings where binding.longPress != nil {
+            let arrows: [String: (UInt16, String)] = ["Scroll up": (126, "↑"), "Scroll down": (125, "↓"), "Scroll left": (123, "←"), "Scroll right": (124, "→")]
+            if let arrow = arrows[binding.longPress ?? ""] {
+                binding.code = arrow.0; binding.label = arrow.1; binding.assigned = true; binding.mode = "Repeat"
+            }
+            binding.longPress = nil; binding.scrollSpeed = nil
+            bindings[slot] = binding
+        }
+        save()
         focusObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in self?.releaseAll() }
         sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in self?.enabled = false }
         refreshPermissions()
@@ -161,34 +191,49 @@ final class Mapper: ObservableObject {
         for source in up { stop(source) }
         guard allowed else { releaseAll(); if !down.isEmpty { report(blockedReason) }; return }
         for source in down {
-            guard let slot = Self.slots.first(where: { sources[$0] == source }), let binding = bindings[slot], binding.assigned else { report("\(source) has no keyboard mapping. Only plus/minus are mapped by default."); continue }
-            if binding.mode == "Hold" {
+            guard let slot = Self.slots.first(where: { sources[$0] == source }), let binding = bindings[slot], binding.assigned else { report("\(source) has no keyboard mapping. Choose a key in the mapper."); continue }
+            if binding.mode == "Hold" || binding.mode == "Repeat" {
                 let alreadyHeld = held.values.contains { $0.code == binding.code }
                 held[source] = binding
-                if !alreadyHeld { emit(binding.code, true, binding.modifiers) }
+                if !alreadyHeld { emit(binding.code, true, binding.modifiers, false) }
+                if binding.mode == "Repeat" {
+                    let delay = Timer(timeInterval: 0.25, repeats: false) { [weak self] _ in
+                        guard let self else { return }
+                        guard self.allowed, self.pressed.contains(source) else { self.releaseAll(); return }
+                        self.emit(binding.code, true, binding.modifiers, true)
+                        let timer = Timer(timeInterval: 0.035, repeats: true) { [weak self] _ in
+                            guard let self else { return }
+                            guard self.allowed, self.pressed.contains(source) else { self.releaseAll(); return }
+                            self.emit(binding.code, true, binding.modifiers, true)
+                        }
+                        self.repeating[source] = timer
+                        RunLoop.main.add(timer, forMode: .common)
+                    }
+                    repeating[source] = delay
+                    RunLoop.main.add(delay, forMode: .common)
+                }
             } else {
                 tap(binding)
-                if binding.mode == "Repeat" {
-                    var ticks = 0
-                    repeating[source] = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
-                        guard let self else { return }
-                        guard self.allowed else { self.releaseAll(); return }
-                        ticks += 1
-                        if ticks >= 3 { self.tap(binding) }
-                    }
-                }
             }
         }
+    }
+    func navigationPreset() {
+        releaseAll()
+        for (slot, code, label) in [("up", UInt16(126), "↑"), ("down", 125, "↓"), ("left", 123, "←"), ("right", 124, "→")] {
+            bindings[slot] = KeyBinding(code: code, label: label, mode: "Repeat", assigned: true)
+        }
+        save()
+        message = "Arrow buttons send immediately and repeat while held. Other mappings are unchanged."
     }
     private func tap(_ binding: KeyBinding) {
         // Do not release a key another physical button is holding.
         guard !held.values.contains(where: { $0.code == binding.code }) else { return }
-        emit(binding.code, true, binding.modifiers); emit(binding.code, false, binding.modifiers)
+        emit(binding.code, true, binding.modifiers, false); emit(binding.code, false, binding.modifiers, false)
     }
     private func stop(_ source: String) {
         repeating.removeValue(forKey: source)?.invalidate()
         if let binding = held.removeValue(forKey: source), !held.values.contains(where: { $0.code == binding.code }) {
-            emit(binding.code, false, binding.modifiers)
+            emit(binding.code, false, binding.modifiers, false)
         }
     }
     func releaseAll() { for source in Array(repeating.keys) { stop(source) }; for source in Array(held.keys) { stop(source) } }
@@ -226,8 +271,8 @@ struct MapperView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading) {
-                    Text("Your ride. Your controls.").font(.largeTitle.bold())
-                    Text("MyWhoosh shifting • Custom keyboard mappings").foregroundStyle(.secondary)
+                    Text("Your buttons. Your shortcuts.").font(.largeTitle.bold())
+                    Text("Keyboard control for your Mac").foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button(mapper.enabled ? "Disable output" : "Enable output") { if mapper.enabled { mapper.enabled = false } else { mapper.enable() } }.buttonStyle(.borderedProminent)
@@ -240,7 +285,7 @@ struct MapperView: View {
                     Text("Decoded ID: \(mapper.sources[mapper.selected] ?? "—")").font(.caption).foregroundStyle(.secondary)
                     Picker("Key", selection: Binding(get: { binding.assigned ? Int(binding.code) : -1 }, set: { code in
                         var value = binding; value.assigned = code >= 0
-                        if let choice = KeyChoice.all.first(where: { Int($0.code) == code }) { value.code = choice.code; value.label = choice.name }
+                        if let choice = KeyChoice.all.first(where: { Int($0.code) == code }) { value.code = choice.code; value.label = choice.name; if (123...126).contains(choice.code) { value.mode = "Repeat" } }
                         mapper.update(value)
                     })) {
                         Text("Unassigned").tag(-1)
@@ -259,8 +304,9 @@ struct MapperView: View {
                     Button(mapper.recording ? "Cancel recording" : "Record keyboard shortcut") { if mapper.recording { mapper.cancelRecording() } else { mapper.recordKey() } }
                     Button(mapper.learning ? "Cancel learning" : "Learn physical button") { mapper.learn() }
                     Divider()
+                    Button("Map arrow keys") { mapper.navigationPreset() }
                     Button("Load MyWhoosh I / K preset") { mapper.preset() }
-                    Text("Output works in any foreground app. Tap sends once; Repeat sends while held.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text("Keys go to the focused app. Repeat starts after 250 ms, then sends every 35 ms. Arrow keys scroll or navigate according to the app.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }.frame(width: 260)
             }
             Text("Schematic layout • Click a position, then Learn to confirm it. Lit buttons show live input.").font(.caption).foregroundStyle(.secondary)

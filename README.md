@@ -100,6 +100,8 @@ Reopen the app, grant access, then fully quit and reopen once more. The reset sc
 
 **No keyboard output:** enable output, focus another application, and check the selected button's mapping. Use **Test I key in 3 seconds**, then focus a blank TextEdit document to test output independently of Bluetooth. The output status and diagnostic log report blocked input and attempted key delivery.
 
+**Arrow scrolling moves only once or feels slow:** check that the mapped arrow button uses **Repeat**, not **Tap**. Saved Tap mappings remain Tap across upgrades. Choose **Map arrow keys** to configure all four directions for held-key repeat without changing other buttons.
+
 ## Development
 
 Run the mapping checks with:
