@@ -25,9 +25,9 @@ Click any of the ten diagram buttons. Select a key and Command/Option/Control/Sh
 - **Hold:** key stays down until the controller button is released.
 - **Repeat:** immediate tap, then taps every 150 ms after a 450 ms delay while held.
 
-Mappings and learned positions are saved locally. Loading the MyWhoosh preset resets all keyboard bindings, leaving learned positions intact. Other eight buttons start unassigned. Enable **Allow output to any app** to use custom mappings in other foreground apps; ClickMapper itself is excluded. This setting resets at launch.
+Mappings and learned positions are saved locally. Loading the MyWhoosh preset resets all keyboard bindings, leaving learned positions intact. Other eight buttons start unassigned. Keyboard output now works across all foreground apps by default; ClickMapper itself is excluded. There is no application restriction toggle.
 
-Held keys and repeat timers are cleared on disconnect, output disable, mapping edits, and foreground-app changes. Sleep disables output. Bluetooth, Accessibility, and real-game behavior still need testing on the user's Mac; automated tests use a fake event sink and do not send keys. This version supports keyboard shortcuts, not mouse actions, text macros, or profile switching.
+Held keys and repeat timers are cleared on disconnect, output disable, mapping edits, and foreground-app changes. Sleep disables output. Bluetooth input and keyboard typing have been confirmed by the user. Automatic reconnect and real-game behavior still need hardware verification; automated tests use a fake event sink and do not send keys. This version supports keyboard shortcuts, not mouse actions, text macros, or profile switching.
 
 ## Hardware evidence and limitations
 
@@ -48,7 +48,9 @@ The app recognizes seven-byte `23 08` state frames and uses the reference handsh
 
 The build script now quits ClickMapper before replacing its executable and resets only `local.clickmapper.diagnostic` Accessibility approval after signing, as requested. Each rebuild therefore requires you to grant permission again. Run `sh scripts/reset-permission.sh` to perform the same reset without rebuilding. A failed reset is reported as a script failure; inside a restricted execution environment, the reset needs to run outside the sandbox. macOS approval must still be given by the user.
 
-ClickMapper starts as a keyboard icon in the macOS menu bar, without a Dock icon or an open window. Use its menu to scan, select a controller (the remembered device has a star), enable/disable keyboard output, disconnect, or open the full mapper. Close the mapper window to leave Bluetooth and keyboard output running. Choose **Quit ClickMapper** in the menu to stop the app and release held keys. The process must remain running to receive Bluetooth input; menu bar mode hides the main window, it does not eliminate the background process.
+ClickMapper starts as a keyboard icon in the macOS menu bar, without a Dock icon or an open window. Click the icon for an interactive panel with live pod diagrams, device cards, signal strength, scan/connect/switch controls, an output toggle, and a shortcut to the full mapper. Tap a diagram position and choose Edit to configure it. Brief presses remain highlighted for 200 ms so they are visible. Close the mapper window to leave Bluetooth and keyboard output running. Choose **Quit** in the panel to stop the app and release held keys. The process must remain running to receive Bluetooth input; menu bar mode hides the main window, it does not eliminate the background process.
 
 This locally ad-hoc-signed build can require renewed Accessibility permission after a rebuild. If Accessibility is granted but keyboard posting is denied, fully quit via the menu and reopen the unchanged build to refresh the permission check. Output remains off at launch until explicitly enabled.
 # ClickMapper
+
+Automatic reconnect is enabled by default and can be turned off in the panel. The last device that produced a recognized state frame is remembered; only that device is retried, avoiding arbitrary selection between identically named pods. Startup and Bluetooth recovery attempt that device, and failed connections retry after a bounded 15-second attempt on an eight-second retry timer. Manual Disconnect/Cancel pauses reconnect until Resume, a manual connection, or relaunch. Output still needs to be explicitly enabled after disconnect. Discovery rows retain their positions while RSSI updates; saved devices without a current advertisement are labeled as saved.
