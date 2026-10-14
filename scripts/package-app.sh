@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+. ./scripts/version.sh
 ./scripts/build-app.sh --package
 APP="$PWD/build/package/ClickMapper.app"
 ARCH=$(uname -m)
@@ -9,8 +10,8 @@ STAGING=$(mktemp -d "$PWD/build/installer.XXXXXX")
 trap 'rm -rf "$STAGING"' EXIT HUP INT TERM
 ditto "$APP" "$STAGING/ClickMapper.app"
 ln -s /Applications "$STAGING/Applications"
-cat > "$STAGING/Install.txt" <<'EOF'
-ClickMapper 0.1.0 — macOS 14 or later
+cat > "$STAGING/Install.txt" <<EOF
+ClickMapper $CLICKMAPPER_VERSION — macOS 14 or later
 
 1. Quit any running ClickMapper instance using its menu bar panel.
 2. Drag ClickMapper.app onto Applications.
@@ -34,7 +35,7 @@ Packaging does not reset permissions or modify an installed copy. The app
 uses the same preferences identifier as the development build, preserving
 saved mappings on this Mac. Avoid running both copies at the same time.
 EOF
-DMG="$PWD/dist/ClickMapper-0.1.0-$ARCH.dmg"
+DMG="$PWD/dist/ClickMapper-$CLICKMAPPER_VERSION-$ARCH.dmg"
 codesign --verify --deep --strict "$APP"
 hdiutil create -volname ClickMapper -srcfolder "$STAGING" -format UDZO -ov "$DMG"
 hdiutil verify "$DMG"

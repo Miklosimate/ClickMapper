@@ -36,9 +36,9 @@ The following previews use sample button input and fictitious device identifiers
 
 ### Install from a disk image
 
-Open `ClickMapper-0.1.0-arm64.dmg`, quit any running ClickMapper instance, and drag **ClickMapper.app** to **Applications**. Eject the disk image and launch `/Applications/ClickMapper.app`. Grant Bluetooth and Accessibility access if prompted, then fully quit and reopen the installed app if keyboard posting still shows denied.
+Download an installer from [Releases](https://github.com/Miklosimate/ClickMapper/releases): choose `arm64` for Apple silicon or `x86_64` for Intel. Open the DMG, quit any running ClickMapper instance, and drag **ClickMapper.app** to **Applications**. Eject the disk image and launch `/Applications/ClickMapper.app`. Grant Bluetooth and Accessibility access if prompted, then fully quit and reopen the installed app if keyboard posting still shows denied.
 
-This package targets Apple silicon Macs running macOS 14 or later. To start at login, add the installed app under **System Settings → General → Login Items & Extensions → Open at Login**. Remove any old login item pointing to the development build. Saved mappings are shared with the development build; run only one copy at a time.
+Packages require macOS 14 or later. To start at login, add the installed app under **System Settings → General → Login Items & Extensions → Open at Login**. Remove any old login item pointing to the development build. Saved mappings are shared with the development build; run only one copy at a time.
 
 The locally built installer is ad-hoc signed and not notarized. Distribution to other users with standard Gatekeeper acceptance requires [Developer ID signing and Apple notarization](https://developer.apple.com/macos/distribution/).
 
@@ -130,13 +130,34 @@ Run the mapping checks with:
 
 Tests use a fake keyboard event sink and do not inject keys. Native arrow-event checks also inspect character codes, navigation flags, and autorepeat metadata; these checks need access to the macOS graphical session. They cover rapid presses, repeat timing and cancellation, held keys, saved mappings, and migration from the retired scroll configuration. Real application behavior and Bluetooth reconnection require hardware testing.
 
+### GitHub releases
+
+Push a tag in the format `vMAJOR.MINOR.PATCH` after committing and pushing the release changes:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The [release workflow](.github/workflows/release.yml) runs the mapping checks on Apple silicon and Intel macOS runners, builds both DMGs, and publishes a GitHub Release with SHA-256 checksums and generated release notes. The tag supplies the app and installer version. Both builds must pass before publishing; follow progress in the repository's **Actions** tab. Use a new version tag for each release; the workflow does not overwrite existing releases.
+
+No additional secrets are required: publishing uses GitHub's automatic token. GitHub Actions must be enabled for the repository. Standard hosted runners are [free for public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions); private repositories use the account's included allowance and can incur charges beyond it. Temporary build artifacts are retained for one day; release downloads remain attached to the release.
+
+These releases are ad-hoc signed and **not notarized**. Apple Developer ID signing and notarization are separate from this workflow; downloaded builds may be blocked by Gatekeeper. Installing a changed build can require renewing Accessibility permission.
+
+To build a specific version locally without publishing:
+
+```sh
+CLICKMAPPER_VERSION=0.1.0 ./scripts/package-app.sh
+```
+
 ### Version control
 
 Commit source, tests, scripts, documentation, and documentation screenshots:
 
 ```sh
 # Run git init first if this directory is not yet a Git repository.
-git add .gitignore Package.swift README.md Sources/ Tests/ scripts/ docs/
+git add .github/ .gitignore Package.swift README.md Sources/ Tests/ scripts/ docs/
 git diff --cached --stat
 git diff --cached
 git commit -m "Add configurable macOS controller mapping and menu bar controls"

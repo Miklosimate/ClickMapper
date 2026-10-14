@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+. ./scripts/version.sh
 PACKAGE_MODE=false
 case "${1:-}" in
     "") ;;
@@ -33,6 +34,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>NSBluetoothAlwaysUsageDescription</key><string>Discover and test your Zwift Click controller button events.</string>
 </dict></plist>
 PLIST
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $CLICKMAPPER_VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $CLICKMAPPER_VERSION" "$APP/Contents/Info.plist"
 if "$PACKAGE_MODE"; then
     /usr/libexec/PlistBuddy -c 'Set :CFBundleName ClickMapper' "$APP/Contents/Info.plist"
 fi
