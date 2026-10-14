@@ -1,9 +1,18 @@
 import AppKit
 
-func XCTAssertEqual<T: Equatable>(_ actual: T, _ expected: T) { precondition(actual == expected, "Expected \(expected), got \(actual)") }
-func XCTAssertTrue(_ value: Bool) { precondition(value) }
-func XCTAssertFalse(_ value: Bool) { precondition(!value) }
-func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual > expected) }
+func XCTAssertEqual<T: Equatable>(_ actual: T, _ expected: T, file: StaticString = #file, line: UInt = #line) { precondition(actual == expected, "Expected \(expected), got \(actual)", file: file, line: line) }
+func XCTAssertTrue(_ value: Bool, file: StaticString = #file, line: UInt = #line) { precondition(value, "Expected true", file: file, line: line) }
+func XCTAssertFalse(_ value: Bool, file: StaticString = #file, line: UInt = #line) { precondition(!value, "Expected false", file: file, line: line) }
+func XCTAssertGreaterThan(_ actual: Int, _ expected: Int, file: StaticString = #file, line: UInt = #line) { precondition(actual > expected, "Expected more than \(expected), got \(actual)", file: file, line: line) }
+
+// Wait for observable behavior without assuming an unloaded CI runner.
+func waitUntil(_ condition: () -> Bool, file: StaticString = #file, line: UInt = #line) {
+    let deadline = Date().addingTimeInterval(5)
+    while !condition() && Date() < deadline {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    }
+    precondition(condition(), "Timed out waiting for mapper events", file: file, line: line)
+}
 
 @main final class MapperTests {
     static func main() {
@@ -22,7 +31,8 @@ func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual 
         suite.testRepeatCancellation()
         suite.testArrowEventEncoding()
         suite.testRepeatUsesKeyDownsUntilRelease()
-        print("Passed 13 mapper checks (fake keyboard event sink).")
+        suite.testPermissionPollingWithFakeOutput()
+        print("Passed 14 mapper checks (fake keyboard event sink).")
     }
     private var suites: [String] = []
     private func testDefaults() -> UserDefaults {
@@ -34,7 +44,7 @@ func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual 
         for name in suites { UserDefaults.standard.removePersistentDomain(forName: name) }
     }
     private func mapper() -> Mapper {
-        let model = Mapper(defaults: testDefaults(), outputContext: { true })
+        let model = Mapper(defaults: testDefaults(), outputContext: { true }, postingAccess: { true })
         model.preset()
         return model
     }
@@ -83,7 +93,7 @@ func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual 
         model.emit = { _, _, _, _ in count += 1 }
         model.receive(["plus"]); model.receive([])
         XCTAssertEqual(count, 0)
-        let blocked = Mapper(defaults: testDefaults(), outputContext: { false })
+        let blocked = Mapper(defaults: testDefaults(), outputContext: { false }, postingAccess: { true })
         blocked.emit = { _, _, _, _ in count += 1 }
         blocked.enabled = true; blocked.receive(["plus"])
         XCTAssertEqual(count, 0)
@@ -117,7 +127,7 @@ func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual 
         model.bindings["plus"]?.mode = "Repeat"
         model.enabled = true; model.receive(["plus"])
         XCTAssertEqual(count, 1)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.52))
+        waitUntil { count > 2 }
         XCTAssertGreaterThan(count, 2)
         model.receive([])
         let afterRelease = count
@@ -141,7 +151,7 @@ func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual 
         let defaults = testDefaults()
         let old = ["up": KeyBinding(code: 49, label: "Space", assigned: true, longPress: "Scroll up", scrollSpeed: 4)]
         defaults.set(try! JSONEncoder().encode(old), forKey: "bindings.v1")
-        let model = Mapper(defaults: defaults, outputContext: { true })
+        let model = Mapper(defaults: defaults, outputContext: { true }, postingAccess: { true })
         XCTAssertEqual(model.bindings["up"]?.code, 126)
         XCTAssertEqual(model.bindings["up"]?.mode, "Repeat")
         XCTAssertEqual(model.bindings["up"]?.longPress, nil)
@@ -153,7 +163,7 @@ func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual 
             model.emit = { _, _, _, _ in count += 1 }
             model.navigationPreset()
             model.enabled = true; model.receive(["up"])
-            RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+            waitUntil { count > 3 }
             XCTAssertGreaterThan(count, 3)
             switch cancel {
             case "disable": model.enabled = false
@@ -184,11 +194,27 @@ func XCTAssertGreaterThan(_ actual: Int, _ expected: Int) { precondition(actual 
         model.navigationPreset(); model.enabled = true
         model.receive(["down"])
         XCTAssertEqual(events, ["true:false"])
-        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        waitUntil { events.count > 2 }
         XCTAssertGreaterThan(events.count, 2)
         XCTAssertTrue(events.dropFirst().allSatisfy { $0 == "true:true" })
         model.receive([])
         XCTAssertEqual(events.last, "false:false")
+    }
+
+    func testPermissionPollingWithFakeOutput() {
+        var permission = true
+        let model = Mapper(defaults: testDefaults(), outputContext: { true }, postingAccess: { permission })
+        var events = 0
+        model.emit = { _, _, _, _ in events += 1 }
+        model.navigationPreset(); model.enabled = true; model.receive(["down"])
+        RunLoop.main.run(until: Date().addingTimeInterval(1.2))
+        XCTAssertTrue(model.enabled)
+        XCTAssertGreaterThan(events, 2)
+        permission = false
+        waitUntil { !model.enabled }
+        let stopped = events
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        XCTAssertEqual(events, stopped)
     }
 
 }

@@ -47,6 +47,7 @@ final class Mapper: ObservableObject {
     @Published var message = "Output is off. Choose a button to edit its mapping."
     private let defaults: UserDefaults
     private let outputContext: () -> Bool
+    private let postingAccess: () -> Bool
     private var held: [String: KeyBinding] = [:]
     private var repeating: [String: Timer] = [:]
     private var monitor: Any?
@@ -82,9 +83,11 @@ final class Mapper: ObservableObject {
         testWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
     }
-    init(defaults: UserDefaults = .standard, outputContext: @escaping () -> Bool = Mapper.isOutputContextAllowed) {
+    init(defaults: UserDefaults = .standard, outputContext: @escaping () -> Bool = Mapper.isOutputContextAllowed,
+         postingAccess: @escaping () -> Bool = { CGPreflightPostEventAccess() }) {
         self.defaults = defaults
         self.outputContext = outputContext
+        self.postingAccess = postingAccess
         emit = { [weak self] code, down, flags, repeating in
             guard let event = KeyboardEvents.make(code: code, down: down, modifiers: flags, repeating: repeating) else {
                 self?.report("Failed to create keyboard event."); return
@@ -117,7 +120,7 @@ final class Mapper: ObservableObject {
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.refreshPermissions()
-            guard self.enabled, !CGPreflightPostEventAccess() else { return }
+            guard self.enabled, !self.postingAccess() else { return }
             self.enabled = false; self.message = "Keyboard-posting permission is required."; self.report(self.message)
         }
     }
