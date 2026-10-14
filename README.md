@@ -4,6 +4,19 @@ Turn Zwift Click V2 controllers into a customizable keyboard remote for macOS. M
 
 ClickMapper runs in the menu bar, shows live controller input, and sends mapped keys to the focused application.
 
+## macOS blocks the downloaded app
+
+GitHub release builds are **not notarized**, so macOS may refuse to open the downloaded app. After dragging **ClickMapper.app** from the DMG into **Applications**, open **Terminal** and run:
+
+```sh
+xattr -dr com.apple.quarantine '/Applications/ClickMapper.app'
+open '/Applications/ClickMapper.app'
+```
+
+This removes the download quarantine attribute from ClickMapper and its bundled files. Only do this for a download you trust from this repository's [Releases](https://github.com/Miklosimate/ClickMapper/releases). If you installed the app elsewhere, replace the path in both commands. You may need to repeat this after downloading an update.
+
+Once the app opens, grant Bluetooth and Accessibility access in System Settings when prompted.
+
 ## Features
 
 - Configurable keys and Command, Option, Control, and Shift modifiers for ten controller inputs.
@@ -114,6 +127,13 @@ Reopen the app, grant access, then fully quit and reopen once more. The reset sc
 
 ## Development
 
+Both app builds include the controller icon from `assets/ClickMapper.icns`. To regenerate it and the PNG preview after editing `scripts/generate-icon.swift`, run on macOS:
+
+```sh
+swift scripts/generate-icon.swift
+iconutil -c icns build/ClickMapper.iconset -o assets/ClickMapper.icns
+```
+
 Create an installer with:
 
 ```sh
@@ -132,11 +152,11 @@ Tests use a fake keyboard event sink and do not inject keys. Native arrow-event 
 
 ### GitHub releases
 
-Push a tag in the format `vMAJOR.MINOR.PATCH` after committing and pushing the release changes:
+Commit and push all release changes first, including icon assets and build scripts. Then push a new, unused tag in the format `vMAJOR.MINOR.PATCH` (for example, `v0.1.3` after `v0.1.2`):
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 The [release workflow](.github/workflows/release.yml) runs the mapping checks on Apple silicon and Intel macOS runners, builds both DMGs, and publishes a GitHub Release with SHA-256 checksums and generated release notes. The tag supplies the app and installer version. Both builds must pass before publishing; follow progress in the repository's **Actions** tab. Use a new version tag for each release; the workflow does not overwrite existing releases.
@@ -157,7 +177,7 @@ Commit source, tests, scripts, documentation, and documentation screenshots:
 
 ```sh
 # Run git init first if this directory is not yet a Git repository.
-git add .github/ .gitignore Package.swift README.md Sources/ Tests/ scripts/ docs/
+git add .github/ .gitignore Package.swift README.md Sources/ Tests/ scripts/ docs/ assets/
 git diff --cached --stat
 git diff --cached
 git commit -m "Add configurable macOS controller mapping and menu bar controls"

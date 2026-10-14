@@ -79,7 +79,16 @@ jobs:
 
           Quit ClickMapper, open the DMG, and drag ClickMapper.app to Applications. Eject the DMG and launch the installed app. Grant Bluetooth and Accessibility access; fully quit and reopen if keyboard posting remains denied.
 
-          These builds are ad-hoc signed and are not notarized by Apple. macOS Gatekeeper may block opening a downloaded build. Updates may require granting Accessibility permission again.
+          ### macOS blocks the app? Remove download quarantine
+
+          These builds are ad-hoc signed and **not notarized**. If macOS refuses to open ClickMapper, first drag it into **Applications**, then open **Terminal** and run:
+
+          ```sh
+          xattr -dr com.apple.quarantine '/Applications/ClickMapper.app'
+          open '/Applications/ClickMapper.app'
+          ```
+
+          Only do this for a download you trust from this repository's releases. This removes quarantine from ClickMapper and its bundled files. If installed elsewhere, adjust both paths. You may need to repeat this after an update. Updates may also require granting Accessibility permission again.
           NOTES
           gh release create "$RELEASE_TAG" dist/*.dmg dist/SHA256SUMS.txt \
             --verify-tag --title "ClickMapper $RELEASE_TAG" \

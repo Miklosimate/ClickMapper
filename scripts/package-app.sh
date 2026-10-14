@@ -20,6 +20,19 @@ ClickMapper $CLICKMAPPER_VERSION — macOS 14 or later
 5. If keyboard posting remains denied after granting Accessibility, fully
    quit ClickMapper from its menu bar panel and reopen the installed app.
 
+MACOS BLOCKS THE APP? REMOVE DOWNLOAD QUARANTINE
+
+These builds are not notarized. If macOS refuses to open ClickMapper,
+first copy it to Applications, then open Terminal and run:
+
+xattr -dr com.apple.quarantine '/Applications/ClickMapper.app'
+open '/Applications/ClickMapper.app'
+
+Only do this for a download you trust from this repository's releases:
+https://github.com/Miklosimate/ClickMapper/releases
+This removes quarantine from ClickMapper and its bundled files. If you
+installed it elsewhere, adjust both paths. Repeat after updates if needed.
+
 ClickMapper appears as a keyboard icon in the menu bar. Open the mapper
 there to configure buttons, connect your controllers, and enable output.
 
